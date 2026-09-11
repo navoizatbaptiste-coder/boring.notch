@@ -60,6 +60,7 @@ class BoringNotchSkyLightWindow: NSPanel {
         isMovable = false
         level = .mainMenu + 3
         hasShadow = false
+        becomesKeyOnlyIfNeeded = true
         isReleasedWhenClosed = false
         
         // Force dark appearance regardless of system setting
@@ -111,4 +112,8 @@ class BoringNotchSkyLightWindow: NSPanel {
     
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+    override func becomeKey() {
+        super.becomeKey()
+        NSApp.activate(ignoringOtherApps: true)
+    }
 }

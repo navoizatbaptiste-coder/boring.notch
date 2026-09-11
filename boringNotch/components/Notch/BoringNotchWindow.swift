@@ -38,6 +38,7 @@ class BoringNotchWindow: NSPanel {
         isReleasedWhenClosed = false
         level = .mainMenu + 3
         hasShadow = false
+        becomesKeyOnlyIfNeeded = true
     }
     
     override var canBecomeKey: Bool {
@@ -46,5 +47,10 @@ class BoringNotchWindow: NSPanel {
     
     override var canBecomeMain: Bool {
         false
+    }
+    
+    override func becomeKey() {
+        super.becomeKey()
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
