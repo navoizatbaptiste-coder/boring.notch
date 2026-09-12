@@ -159,7 +159,7 @@ struct TasksView: View {
     @ObservedObject private var feed = SheetFeed.shared
     @AppStorage("selectedTaskListIndex") private var selectedListIndex: Int = 0
     @AppStorage("sheetCSVURL") private var sheetURL: String = ""
-    @State private var showingPatron = false
+    @AppStorage("showingPatron") private var showingPatron = false
     @State private var newTaskText = ""
     @State private var editingTaskID: UUID?
     @State private var editingText = ""
@@ -181,14 +181,17 @@ struct TasksView: View {
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, maxHeight: 200, alignment: .leading)
         .onHover { hovering in
-            // Empêche l'encoche de se fermer tant que la souris est sur le panneau (ex. pendant le scroll)
             SharingStateManager.shared.preventNotchClose = hovering
         }
         .onDisappear {
             SharingStateManager.shared.preventNotchClose = false
         }
+        .task {
+            if showingPatron && feed.tasks.isEmpty {
+                await feed.refresh(from: sheetURL)
+            }
+        }
     }
-
     private var selector: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
