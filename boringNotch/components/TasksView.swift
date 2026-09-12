@@ -1,11 +1,3 @@
-//
-//  TasksView.swift
-//  boringNotch
-//
-//  Created by Baptiste Navoizat on 12/09/2026.
-//
-
-
 import SwiftUI
 
 struct TasksView: View {
@@ -115,8 +107,9 @@ struct TasksView: View {
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .secondarySystemFill)))
                     .onSubmit { Task { await feed.refresh(from: sheetURL) } }
             } else {
+                let visible = feed.tasks.filter { !store.importedSheetIDs.contains($0.id) }
                 HStack {
-                    Text("\(feed.tasks.count) tâche(s)").font(.caption).foregroundStyle(.gray)
+                    Text("\(visible.count) tâche(s)").font(.caption).foregroundStyle(.gray)
                     Spacer()
                     if feed.isLoading { ProgressView().controlSize(.small) }
                     else {
@@ -125,10 +118,12 @@ struct TasksView: View {
                         }.buttonStyle(.plain).foregroundStyle(.gray)
                     }
                 }
-                if let err = feed.errorMessage { Text(err).font(.caption2).foregroundStyle(.orange) }
+                if let err = feed.errorMessage, visible.isEmpty {
+                    Text(err).font(.caption2).foregroundStyle(.orange)
+                }
                 ScrollView {
                     VStack(alignment: .leading, spacing: 5) {
-                        ForEach(feed.tasks) { task in
+                        ForEach(visible) { task in
                             HStack(alignment: .top, spacing: 8) {
                                 Circle().fill(statusColor(task.status)).frame(width: 7, height: 7).padding(.top, 5)
                                 VStack(alignment: .leading, spacing: 1) {
@@ -138,6 +133,13 @@ struct TasksView: View {
                                     }
                                 }
                                 Spacer()
+                            }
+                            .contentShape(Rectangle())
+                            .contextMenu {
+                                Text("Ranger dans…")
+                                ForEach(Array(store.lists.enumerated()), id: \.element.id) { idx, list in
+                                    Button(list.name) { store.importSheetTask(task, toListAt: idx) }
+                                }
                             }
                         }
                     }
@@ -189,6 +191,15 @@ struct TasksView: View {
                     .onTapGesture(count: 2) { startEditing(task) }
                     .contextMenu {
                         Button("Modifier") { startEditing(task) }
+                        if store.lists.count > 1 {
+                            Menu("Déplacer vers…") {
+                                ForEach(Array(store.lists.enumerated()), id: \.element.id) { idx, list in
+                                    if idx != safeIndex {
+                                        Button(list.name) { store.moveTask(task, from: safeIndex, to: idx) }
+                                    }
+                                }
+                            }
+                        }
                         Button("Supprimer", role: .destructive) { store.deleteTask(task, inListAt: safeIndex) }
                     }
             }
