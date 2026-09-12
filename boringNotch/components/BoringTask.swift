@@ -180,6 +180,13 @@ struct TasksView: View {
         }
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, maxHeight: 200, alignment: .leading)
+        .onHover { hovering in
+            // Empêche l'encoche de se fermer tant que la souris est sur le panneau (ex. pendant le scroll)
+            SharingStateManager.shared.preventNotchClose = hovering
+        }
+        .onDisappear {
+            SharingStateManager.shared.preventNotchClose = false
+        }
     }
 
     private var selector: some View {
