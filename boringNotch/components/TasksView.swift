@@ -3,6 +3,7 @@ import SwiftUI
 struct TasksView: View {
     @ObservedObject private var store = TaskStore.shared
     @ObservedObject private var feed = SheetFeed.shared
+    @EnvironmentObject private var vm: BoringViewModel
     @AppStorage("selectedTaskListIndex") private var selectedListIndex: Int = 0
     @AppStorage("sheetCSVURL") private var sheetURL: String = ""
     @AppStorage("showingPatron") private var showingPatron = false
@@ -33,8 +34,12 @@ struct TasksView: View {
             SharingStateManager.shared.preventNotchClose = false
         }
         .task {
-            if showingPatron && feed.tasks.isEmpty {
-                await feed.refresh(from: sheetURL)
+            Notifier.shared.requestPermission()
+            feed.onNewTasks = { newTasks in
+                Notifier.shared.notify(newTasks)
+            }
+            if !sheetURL.isEmpty {
+                feed.startAutoRefresh(url: sheetURL)
             }
         }
     }

@@ -1,13 +1,6 @@
-//
-//  SheetTask.swift
-//  boringNotch
-//
-//  Created by Baptiste Navoizat on 12/09/2026.
-//
-
-
 import SwiftUI
 import Combine
+import UserNotifications
 
 // MARK: - Tâche venant du Sheet du patron
 struct SheetTask: Identifiable {
@@ -24,7 +17,24 @@ final class SheetFeed: ObservableObject {
     @Published var tasks: [SheetTask] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+
+    // IDs déjà connus, pour détecter les nouveautés
+    private var knownIDs: Set<String> = []
+    private var hasLoadedOnce = false
+    // Appelé quand de nouvelles tâches arrivent (nouveaux IDs)
+    var onNewTasks: (([SheetTask]) -> Void)?
+
     private let me = "baptiste"
+    private var timer: Timer?
+
+    // Démarre le rafraîchissement automatique (toutes les 10 min)
+    func startAutoRefresh(url: String) {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in
+            Task { await self?.refresh(from: url) }
+        }
+        Task { await refresh(from: url) }  // un premier chargement immédiat
+    }
 
     func refresh(from urlString: String) async {
         let s = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -36,12 +46,29 @@ final class SheetFeed: ObservableObject {
             let (data, _) = try await URLSession.shared.data(from: url)
             let csv = String(decoding: data, as: UTF8.self)
             let rows = CSVParser.parse(csv)
-            tasks = Self.build(from: rows, me: me)
+            let newList = Self.build(from: rows, me: me)
+            detectNew(newList)
+            tasks = newList
             if tasks.isEmpty { errorMessage = "Aucune tâche ouverte pour toi." }
         } catch {
             errorMessage = "Échec du chargement."
         }
         isLoading = false
+    }
+
+    private func detectNew(_ incoming: [SheetTask]) {
+        let incomingIDs = Set(incoming.map { $0.id })
+        if !hasLoadedOnce {
+            // Premier chargement : on mémorise l'état sans déclencher de pop-up
+            knownIDs = incomingIDs
+            hasLoadedOnce = true
+            return
+        }
+        let newOnes = incoming.filter { !knownIDs.contains($0.id) }
+        knownIDs.formUnion(incomingIDs)
+        if !newOnes.isEmpty {
+            onNewTasks?(newOnes)
+        }
     }
 
     private static func build(from rows: [[String]], me: String) -> [SheetTask] {
@@ -88,5 +115,36 @@ enum CSVParser {
         record.append(field)
         if record.count > 1 || !(record.first?.isEmpty ?? true) { rows.append(record) }
         return rows
+    }
+}
+// MARK: - Notifications système
+// MARK: - Notifications système
+final class Notifier: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = Notifier()
+
+    func requestPermission() {
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    func notify(_ tasks: [SheetTask]) {
+        let content = UNMutableNotificationContent()
+        if tasks.count == 1 {
+            content.title = "Nouvelle tâche du patron"
+            content.body = tasks[0].title
+        } else {
+            content.title = "\(tasks.count) nouvelles tâches du patron"
+            content.body = tasks.prefix(3).map { $0.title }.joined(separator: " • ")
+        }
+        content.sound = .default
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req)
+    }
+
+    // Autorise l'affichage même quand l'app est au premier plan
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound, .list])
     }
 }
