@@ -95,7 +95,9 @@ final class SheetFeed: ObservableObject {
             let csv = String(decoding: data, as: UTF8.self)
             let rows = CSVParser.parse(csv)
             tasks = Self.build(from: rows, me: me)
-            if tasks.isEmpty { errorMessage = "Aucune tâche ouverte pour toi." }
+            if tasks.isEmpty {
+                errorMessage = "Découpé en \(rows.count) lignes, en-tête \(rows.first?.count ?? 0) colonnes."
+            }
         } catch {
             errorMessage = "Échec du chargement."
         }
@@ -121,36 +123,36 @@ final class SheetFeed: ObservableObject {
 }
 
 // MARK: - Parseur CSV robuste
+// MARK: - Parseur CSV robuste
 enum CSVParser {
     static func parse(_ text: String) -> [[String]] {
+        // 1) On normalise toutes les fins de ligne en \n
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
         var rows: [[String]] = []
-        var field = ""; var record: [String] = []
+        var field = ""
+        var record: [String] = []
         var inQuotes = false
-        let chars = Array(text); var i = 0
-        while i < chars.count {
-            let c = chars[i]
+        for c in normalized {
             if inQuotes {
-                if c == "\"" {
-                    if i + 1 < chars.count && chars[i + 1] == "\"" { field.append("\""); i += 1 }
-                    else { inQuotes = false }
-                } else { field.append(c) }
+                if c == "\"" { inQuotes = false }
+                else { field.append(c) }
             } else {
                 switch c {
                 case "\"": inQuotes = true
                 case ",": record.append(field); field = ""
                 case "\n": record.append(field); field = ""; rows.append(record); record = []
-                case "\r": break
                 default: field.append(c)
                 }
             }
-            i += 1
         }
         record.append(field)
         if record.count > 1 || !(record.first?.isEmpty ?? true) { rows.append(record) }
         return rows
     }
 }
-
 // MARK: - Vue
 struct TasksView: View {
     @ObservedObject private var store = TaskStore.shared
